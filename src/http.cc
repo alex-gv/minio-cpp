@@ -34,6 +34,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <chrono>
 #include <type_traits>
 
 #include "miniocpp/error.h"
@@ -431,7 +433,7 @@ Response Request::execute() {
     fd_set fdread{};
     fd_set fdwrite{};
     fd_set fdexcep{};
-    int maxfd = 0;
+    int maxfd = -1;
 
     FD_ZERO(&fdread);
     FD_ZERO(&fdwrite);
@@ -439,10 +441,20 @@ Response Request::execute() {
 
     requests.fdset(&fdread, &fdwrite, &fdexcep, &maxfd);
 
-    if (select(maxfd + 1, &fdread, &fdwrite, &fdexcep, nullptr) < 0) {
-      std::cerr << "select() failed; this should not happen" << std::endl;
-      std::terminate();
+    timeval timeout{};
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 10000;
+
+    if (maxfd == -1) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    } else {
+        int ret = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+        if (ret < 0) {
+            std::cerr << "select() failed; this should not happen" << std::endl;
+            std::terminate();
+        }
     }
+
     while (!requests.perform(&left)) {
     }
   }
